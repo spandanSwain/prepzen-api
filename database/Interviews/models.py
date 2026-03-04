@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import Dict, Any
 
 class Interviews(BaseModel):
+    user_id: str
     proficiency: str
     topic: str
     numQuestions: str

@@ -7,6 +7,7 @@ load_dotenv()
 
 
 uri = os.getenv("MONGO_URL")
-client = MongoClient(uri, server_api=ServerApi('1'))
+client = MongoClient(uri, tls=True,
+    tlsAllowInvalidCertificates=True, server_api=ServerApi('1'))
 
 db = client.prepzen

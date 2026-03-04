@@ -10,4 +10,4 @@ class Users(BaseModel):
     lastLogin: datetime | None = None
     createdAt: datetime
     updatedAt: datetime
-    interviews_attended: [ObjectId]
+    interviews_attended: [ObjectId] # type: ignore

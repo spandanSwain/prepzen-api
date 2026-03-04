@@ -2,16 +2,26 @@ from fastapi import APIRouter, HTTPException
 from configurations import db
 from datetime import datetime
 from database.Interviews.models import Interviews
+from database.DTOs.user_interview_question import UserInterviewDTO
 from AI_Utility.genai import getDataFromGemini
+from bson import ObjectId
 
 response_router = APIRouter()
 interview_collection = db["Interviews"]
+users_collection = db["users"]
 
 @response_router.post("/schedule-interview")
 def start_interview(data: Interviews):
     try:
-        # STRUCTURE WILL CHANGE
+        userObj: UserInterviewDTO = createUserInterviewDTO(interview_doc)
+
+        if not userObj:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        ai_response = getDataFromGemini(userObj)
+
         interview_doc = {
+            "user_id": data.user_id,
             "proficiency": data.proficiency,
             "topic": data.topic,
             "numQuestions": data.numQuestions,
@@ -22,13 +32,10 @@ def start_interview(data: Interviews):
         result = interview_collection.insert_one(interview_doc)
         interview_id = str(result.inserted_id)
 
-        ai_response = getDataFromGemini(data.topic, data.proficiency, data.numQuestions)
-
-        # ASK HARIOM - if we need to add this response in mongo
-        # interview_collection.update_one(
-        #     {"_id": result.inserted_id},
-        #     {"$set": {"aiResponse": ai_response}}
-        # )
+        users_collection.update_one(
+            {"_id": ObjectId(data.user_id)},
+            {"$push": {"interviews_attended": ObjectId(interview_id)}}
+        )
 
         return {
             "interview_id": interview_id,
@@ -40,11 +47,25 @@ def start_interview(data: Interviews):
     except Exception as ex:
         return HTTPException(
             status_code=500,
-            detail=f"Some exception occured in Response/routes.py/start_intervieww() /response/start-interview :: {ex}"
+            detail=f"Some exception occured in Response/routes.py/schedule_interview() /response/start-interview :: {ex}"
         )
 
-"""
-hariom will send a json/ response having the domain, proficiency, topic
-set these in mongo db -> then call ai (ajay function) -> send ajay's response to hariom
-POST REQUEST
-"""
+
+
+def createUserInterviewDTO(data):
+    uidto = UserInterviewDTO()
+    
+    user_id = ObjectId(data["user_id"])
+    user_data = users_collection.find_one({"_id": user_id})
+
+    if not user_data:
+        return None
+
+    uidto.username = user_data.get("name", "")
+    uidto.domain = user_data.get("domain", "")
+    uidto.performanceLevel = user_data.get("performanceLevel", "easy")
+
+    uidto.numQuestions = data.get("numQuestions")
+    uidto.proficiency = data.get("proficiency")
+    uidto.topic = data.get("topic")
+    return uidto
