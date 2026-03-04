@@ -1,9 +1,11 @@
-from database.DTOs.user_interview_question import UserInterviewDTO
 import os
 import json
-from dotenv import load_dotenv
 from google import genai
- 
+from dotenv import load_dotenv
+from database.Interviews.models import InterviewComplete
+from database.DTOs.user_interview_question import UserInterviewDTO
+from database.DTOs.evaluation_metrics import EvaluationMetrics
+
 # Load the variables from .env into the system environment
 load_dotenv()
  
@@ -28,7 +30,7 @@ def getDataFromGemini(user: UserInterviewDTO):
     )
     
     response = client.models.generate_content(
-        model="gemini-3-flash-preview",
+        model="gemini-2.5-flash",
         contents=prompt,
         config={"response_mime_type": "application/json"}
     )
@@ -37,3 +39,51 @@ def getDataFromGemini(user: UserInterviewDTO):
         return json_data
     except json.JSONDecodeError:
         return {"questions": [response.text]}
+    
+
+
+def evaluateUserBasedOnTranscribe(data: InterviewComplete):
+    system_instruction = "You are a professional interviewer analyzing a mock interview. Evaluate the candidate strictly based on the provided transcript."
+    
+    prompt = f"""
+    Analyze the following interview transcript:
+    {data.transcribe}
+
+    Task:
+    Provide a score (0-100) for each category and a critical evaluation. 
+    Do not be lenient; point out mistakes or gaps in knowledge clearly.
+
+    Evaluation Criteria:
+    - communication_skills: (0-100)
+    - technical_knowledge: (0-100)
+    - problem_solving: (0-100)
+    - cultural_role_fit: (0-100)
+    - confidence_clarity: (0-100)
+    
+    New Required Formatting:
+    1. detailed_feedback: This must be exactly ONE of these three strings: "Good", "Average", or "Bad" based on the overall performance.
+    2. areas_for_improvement: This must be a JSON array (list) of strings containing specific, actionable critiques.
+
+    Return the response ONLY as a JSON object.
+    """
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash", # or "gemini-2.5-flash"
+            contents=prompt,
+            config={
+                "system_instruction": system_instruction,
+                "response_mime_type": "application/json",
+                "response_schema": EvaluationMetrics 
+            }
+        )
+        
+        # Parse the string response into a Python dictionary
+        evaluation_json = json.loads(response.text)
+        return evaluation_json
+
+    except Exception as e:
+        return {
+            "error": "Failed to generate evaluation",
+            "details": str(e)
+        }

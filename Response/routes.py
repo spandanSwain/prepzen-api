@@ -13,29 +13,39 @@ users_collection = db["users"]
 @response_router.post("/schedule-interview")
 def start_interview(data: Interviews):
     try:
-        userObj: UserInterviewDTO = createUserInterviewDTO(interview_doc)
-
-        if not userObj:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        ai_response = getDataFromGemini(userObj)
-
         interview_doc = {
-            "user_id": data.user_id,
+            "user_id": ObjectId(data.user_id),
             "proficiency": data.proficiency,
             "topic": data.topic,
             "numQuestions": data.numQuestions,
             "createdAt": datetime.utcnow(),
-            "response": None
         }
+
+        userObj: UserInterviewDTO = createUserInterviewDTO(interview_doc)
+
+        if not userObj: raise HTTPException(status_code=404, detail="User not found")
+        
+        # FIX THIS ASAP
+        ai_response = getDataFromGemini(userObj)
+
+        # DUMMY IF GEMINI IS DOWN
+        # ai_response = {
+        #     "questions": [
+        #         "what is an array?",
+        #         "what is difference between arraylist and hashmap",
+        #         "give a real world use case of hashmap and hashset",
+        #         "tell me about this MVC project of yours"
+        #     ]
+        # }
 
         result = interview_collection.insert_one(interview_doc)
         interview_id = str(result.inserted_id)
 
-        users_collection.update_one(
-            {"_id": ObjectId(data.user_id)},
-            {"$push": {"interviews_attended": ObjectId(interview_id)}}
-        )
+        # adding user_id to interview not reverse
+        # users_collection.update_one(
+        #     {"_id": ObjectId(data.user_id)},
+        #     {"$push": {"interviews_attended": ObjectId(interview_id)}}
+        # )
 
         return {
             "interview_id": interview_id,
@@ -45,7 +55,7 @@ def start_interview(data: Interviews):
     except HTTPException as hex:
         raise hex
     except Exception as ex:
-        return HTTPException(
+        raise HTTPException(
             status_code=500,
             detail=f"Some exception occured in Response/routes.py/schedule_interview() /response/start-interview :: {ex}"
         )
