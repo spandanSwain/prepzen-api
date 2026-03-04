@@ -11,8 +11,6 @@ interview_collection = db["Interviews"]
 def complete_interview(data: InterviewComplete):
     try:
         interview_id = ObjectId(data.interview_id)
-        user_id = ObjectId(data.user_id)
-
         db["Interviews"].update_one(
             {"_id": interview_id},
             {
@@ -29,11 +27,6 @@ def complete_interview(data: InterviewComplete):
                     "completedAt": datetime.utcnow()
                 }
             }
-        )
-
-        db["users"].update_one(
-            {"_id": user_id},
-            {"$push": {"interviews_attended": interview_id}}
         )
 
         return {"message": "Interview completed successfully"}
