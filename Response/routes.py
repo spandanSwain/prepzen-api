@@ -7,13 +7,14 @@ from AI_Utility.genai import getDataFromGemini
 response_router = APIRouter()
 interview_collection = db["Interviews"]
 
-@response_router.post("/start-interview")
+@response_router.post("/schedule-interview")
 def start_interview(data: Interviews):
     try:
         # STRUCTURE WILL CHANGE
         interview_doc = {
             "proficiency": data.proficiency,
             "topic": data.topic,
+            "numQuestions": data.numQuestions,
             "createdAt": datetime.utcnow(),
             "response": None
         }
@@ -21,7 +22,7 @@ def start_interview(data: Interviews):
         result = interview_collection.insert_one(interview_doc)
         interview_id = str(result.inserted_id)
 
-        ai_response = getDataFromGemini(data.topic, data.proficiency)
+        ai_response = getDataFromGemini(data.topic, data.proficiency, data.numQuestions)
 
         # ASK HARIOM - if we need to add this response in mongo
         # interview_collection.update_one(

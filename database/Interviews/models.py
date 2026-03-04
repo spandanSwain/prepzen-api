@@ -4,6 +4,7 @@ from typing import Dict, Any
 class Interviews(BaseModel):
     proficiency: str
     topic: str
+    numQuestions: str
 
 class InterviewComplete(BaseModel):
     interview_id: str
