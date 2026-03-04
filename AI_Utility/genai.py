@@ -1,2 +1,2 @@
-def getDataFromGemini(domain: str, topic: str, proficiency: str):
+def getDataFromGemini(topic: str, proficiency: str):
     return "DONE"
