@@ -1,6 +1,7 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from bson import ObjectId
+from typing import Optional, List
 
 class Users(BaseModel):
     email: str
@@ -8,9 +9,10 @@ class Users(BaseModel):
     username: str
     employee_id: str
     role: str = "student"
-    createdAt: datetime
-    updatedAt: datetime
+    createdAt:datetime = Field(default_factory=datetime.now)
+    updatedAt:datetime = Field(default_factory=datetime.now)
 
 class LoginUsers(BaseModel):
     employee_id: str
     password: str
+    role: str
