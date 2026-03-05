@@ -4,6 +4,7 @@ from Quiz.routes import quiz_router
 from Domain.routes import domain_router
 from Response.routes import response_router
 from Feedback.routes import conclusion_router
+from Dashboard.routes import dashboard_router
 from fastapi.middleware.cors import CORSMiddleware
 
 # INIT FASTAPI
@@ -18,8 +19,9 @@ app.add_middleware(
 )
 
 # INCLUDE ALL ROUTERS HERE
-app.include_router(quiz_router, prefix="/quiz", tags=["Quiz"])
 app.include_router(auth_router, prefix="/auth", tags=["Auth"])
+app.include_router(quiz_router, prefix="/quiz", tags=["Quiz"])
 app.include_router(domain_router, prefix="/domain", tags=["Domain"])
 app.include_router(response_router, prefix="/response", tags=["Response"])
 app.include_router(conclusion_router, prefix="/feedback", tags=["Feedback"])
+app.include_router(dashboard_router, prefix="/dashboard", tags=["Dashboard"])

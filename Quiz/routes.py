@@ -65,16 +65,10 @@ def calculate_quiz_score(data: QuizScore):
             "status": "pass" if numeric_score >= 75 else "fail",
             "updatedAt": datetime.utcnow()
         }
-
-        result = quiz_collection.update_one(
-            {"user_id": user_id},
-            {"$set": quiz_record},
-            upsert=True 
-        )
+        quiz_collection.insert_one(quiz_record)
 
         return {
             "status_code": 200,
-            "message": "Score updated successfully" if result.matched_count else "New quiz record created",
             "data": {
                 "user_id": str(user_id),
                 "score": data.score,
