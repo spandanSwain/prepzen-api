@@ -1,12 +1,8 @@
 from fastapi import APIRouter, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
 from configurations import db
-from datetime import datetime
-from bson import ObjectId
 from Auth.hashing import hash_password, verify_password
 from database.Users.models import Users, LoginUsers
 from Auth.jwt_handler import create_access_token
-from Auth.dependencies import get_current_user
 
 auth_router = APIRouter()
 users_collection = db["users"]
