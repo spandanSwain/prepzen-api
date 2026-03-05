@@ -6,6 +6,7 @@ from Auth.jwt_handler import create_access_token
 
 auth_router = APIRouter()
 users_collection = db["users"]
+domain_collection = db["domain"]
 
 @auth_router.post("/signup")
 def register_user(user: Users):
@@ -41,6 +42,14 @@ def login_user(user: LoginUsers):
         employee_id = int(user.employee_id)
         employee_password = user.password
         user = users_collection.find_one({"employee_id": str(user.employee_id)})
+        domain_name = ""
+
+        if user and "domain" in user:
+            domain_id = user["domain"]
+            domain_doc = domain_collection.find_one({"_id": domain_id})
+
+            if domain_doc:
+                domain_name = domain_doc.get("domain_name")
 
         if not user:
             raise HTTPException(
@@ -62,7 +71,8 @@ def login_user(user: LoginUsers):
                 "employee_id": user["employee_id"],
                 "username": user["username"],
                 "email": user["email"],
-                "role": user["role"]
+                "role": user["role"],
+                "domain": domain_name
             }
         }
 
