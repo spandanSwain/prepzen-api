@@ -52,11 +52,17 @@ def calculate_quiz_score(data: QuizScore):
         if not user_doc: raise HTTPException(status_code=404, detail="User not found for the given employee_id")
         
         user_id = user_doc["_id"]
+        numeric_score = 0
+        try:
+            numeric_score = float(data.score)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Invalid score format. Must be a number.")
+        
         quiz_record = {
             "user_id": user_id,
             "employee_id": str(data.employee_id),
             "score": data.score,
-            "status": "pass" if data.score >= 75 else "fail",
+            "status": "pass" if numeric_score >= 75 else "fail",
             "updatedAt": datetime.utcnow()
         }
 
@@ -71,7 +77,8 @@ def calculate_quiz_score(data: QuizScore):
             "message": "Score updated successfully" if result.matched_count else "New quiz record created",
             "data": {
                 "user_id": str(user_id),
-                "score": data.score
+                "score": data.score,
+                "status": "pass" if numeric_score >= 75 else "fail"
             }
         }
     except HTTPException as hex:
