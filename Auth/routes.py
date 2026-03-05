@@ -57,7 +57,13 @@ def login_user(user: LoginUsers):
         token = create_access_token(employee_id)
         return {
             "access_token": token,
-            "token_type": "bearer"
+            "token_type": "bearer",
+            "user": {
+                "employee_id": user["employee_id"],
+                "username": user["username"],
+                "email": user["email"],
+                "role": user["role"]
+            }
         }
 
     except HTTPException as hex:
