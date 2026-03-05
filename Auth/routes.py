@@ -24,7 +24,7 @@ def register_user(user: Users):
 
         resp = users_collection.insert_one(user_dict)  
         user_data = {
-            "_id": resp.inserted_id,
+            "_id": str(resp.inserted_id),
             "username": user.username,
             "employee_id": user.employee_id,
             "email": user.email,
