@@ -12,3 +12,7 @@ class QuizItem(BaseModel):
 
 class QuizResponse(BaseModel):
     quiz: List[QuizItem]
+
+class QuizScore(BaseModel):
+    employee_id: str
+    score: str
