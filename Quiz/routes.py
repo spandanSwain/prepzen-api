@@ -56,6 +56,7 @@ def calculate_quiz_score(data: QuizScore):
             "user_id": user_id,
             "employee_id": str(data.employee_id),
             "score": data.score,
+            "status": "pass" if data.score >= 75 else "fail",
             "updatedAt": datetime.utcnow()
         }
 
