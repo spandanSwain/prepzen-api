@@ -18,7 +18,6 @@ def get_domains():
             temp = {}
             temp["domain_id"] = str(domain["_id"])
             temp["domain_name"] = domain["domain_name"]
-            temp["description"] = domain["description"]
             domains.append(temp)
 
         return {

@@ -22,7 +22,9 @@ def register_user(user: Users):
         
         user_dict["password"] = hash_password(str(user.password))
 
-        resp = users_collection.insert_one(user_dict)  
+        resp = users_collection.insert_one(user_dict)
+        token = create_access_token(user.employee_id)
+
         user_data = {
             "_id": str(resp.inserted_id),
             "username": user.username,
@@ -33,6 +35,8 @@ def register_user(user: Users):
 
         return {
             "status_code": 200,
+            "access_token": token,
+            "token_type": "bearer",
             "user": user_data
         }
 
