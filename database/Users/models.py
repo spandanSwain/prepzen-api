@@ -5,9 +5,12 @@ from bson import ObjectId
 class Users(BaseModel):
     email: str
     password: str
-    name: str
-    isVerified: bool = True
-    lastLogin: datetime | None = None
+    username: str
+    employee_id: str
+    role: str = "student"
     createdAt: datetime
     updatedAt: datetime
-    interviews_attended: [ObjectId] # type: ignore
+
+class LoginUsers(BaseModel):
+    employee_id: str
+    password: str
