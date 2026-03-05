@@ -21,10 +21,19 @@ def register_user(user: Users):
             )
         
         user_dict["password"] = hash_password(str(user.password))
-        resp = users_collection.insert_one(user_dict)
+
+        resp = users_collection.insert_one(user_dict)  
+        user_data = {
+            "_id": resp.inserted_id,
+            "username": user.username,
+            "employee_id": user.employee_id,
+            "email": user.email,
+            "role": user.role
+        }
+
         return {
             "status_code": 200,
-            "message": f"User created successfully with id = {resp.inserted_id}"
+            "user": user_data
         }
 
     except HTTPException as hex:
