@@ -6,6 +6,7 @@ from bson import ObjectId
 domain_router = APIRouter()
 domain_collection = db["domain"]
 users_collection = db["users"]
+path_collection = db["learning_path"]
 
 @domain_router.get("/get-domain")
 def get_domains():
@@ -43,6 +44,42 @@ def update_users_domain(user: UserDomain):
         result = users_collection.update_one(
             {"_id": existing_user["_id"]},
             {"$set": {"domain": domain_id}}
+        )
+
+        # CREATE LEARNING PATH COLLECTION AND ADD THE USER
+        domain_data = domain_collection.find_one({"_id": domain_id})
+        if not domain_data: raise HTTPException(status_code=404, detail="Domain not found")
+        
+        assignments_status = []
+        for assignment in domain_data.get("assignments", []):
+            assignments_status.append({
+                "assignment_id": str(assignment["id"]),
+                "title": assignment["title"],
+                "workload_hours": assignment["workload_hours"],
+                "curriculum": assignment["curriculum"],
+                "links": assignment["links"],
+                "status": "pending",
+                "score": 0,
+                "completed_at": None,
+                "weakness": []
+            })
+
+        initial_skills = {}
+        
+        path_dict = {
+            "user_id": existing_user["_id"],
+            "domain_id": domain_id,
+            "overall_progress": 0.0,
+            "current_level": 1,
+            "total_xp": 0,
+            "assignments_status": assignments_status,
+            "skill_mastery": initial_skills,
+        }
+
+        path_collection.update_one(
+            {"user_id": existing_user["_id"]},
+            {"$set": path_dict},
+            upsert=True
         )
 
         if result.modified_count == 0:

@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from database.Interviews.models import InterviewComplete
 from database.DTOs.user_interview_question import UserInterviewDTO
 from database.DTOs.evaluation_metrics import EvaluationMetrics
+from typing import List, Dict, Any, Tuple
 
 # Load the variables from .env into the system environment
 load_dotenv()
@@ -15,30 +16,179 @@ api_key = os.getenv("GEMINI_API_KEY")
 # Initialize the client
 client = genai.Client(api_key=api_key)
 
-def getDataFromGemini(user: UserInterviewDTO):
-    # Use a system-style instruction to enforce JSON formatting
-    prompt = (f"""Act as a Senior {user.domain} Interviewer for a {user.proficiency} level candidate.
-        Generate exactly {user.numQuestions} interview questions on the topic: {user.topic}.
-        Context: The candidate ({user.username}) has a current performance level of {user.performanceLevel}.
-        Rules:
-        1. Return the response ONLY as a JSON object with a key 'questions' containing an array of strings.
-        2. Do not include any introductory or concluding text.
-        The questions are going to be read by a voice assistant so do not use "/" or "*" or any other special characters which might break the voice assistant.
-        Return the questions formatted like this:
-        ["Question 1", "Question 2", "Question 3"]
-        """
+# HELPERS
+def _clamp_num_questions(n: int | None) -> int:
+    try:
+        if n is None: return 15
+        n = int(n)
+    except Exception: return 15
+    return max(12, min(17, n))
+
+def _as_list(value) -> list[str]:
+    if value is None: return []
+    if isinstance(value, str):
+        if "," in value:
+            return [p.strip() for p in value.split(",") if p.strip()]
+        return [value.strip()] if value.strip() else []
+    if isinstance(value, (list, tuple, set)):
+        return [str(v).strip() for v in value if str(v).strip()]
+    return []
+
+def _percent_allocation(total: int, spec: list[Tuple[str, float]]) -> Dict[str, int]:
+    raw = [(label, p * total) for label, p in spec]
+    floors = {label: int(v // 1) for label, v in raw}
+    remainder = total - sum(floors.values())
+    fracs = sorted(((label, v - int(v // 1)) for label, v in raw), key=lambda x: x[1], reverse=True)
+    for i in range(remainder):
+        floors[fracs[i % len(fracs)][0]] += 1
+    return floors
+
+def _build_distribution(level: int, num_q: int, weaknesses: List[str]) -> Tuple[Dict[str, int], Dict[str, Any]]:
+    policy = {"difficulty": "mixed", "notes": []}
+    if int(level) == 1:
+        spec = [("imp_provided", 0.55), ("basic_provided", 0.25), ("prob_provided", 0.20)]
+        counts = _percent_allocation(num_q, spec)
+        counts.update({"imp_weakness": 0, "lessimp_weakness": 0})
+        policy.update({"difficulty": "easy-to-moderate", "notes": ["Level 1: Restricted to provided topics (55/25/20)."]})
+        return counts, policy
+
+    has_weak = len(weaknesses) > 0
+    if not has_weak:
+        spec = [("imp_provided", 0.60), ("basic_provided", 0.20), ("prob_provided", 0.20)]
+        counts = _percent_allocation(num_q, spec)
+        counts.update({"imp_weakness": 0, "lessimp_weakness": 0})
+        policy.update({"difficulty": "moderate-to-hard", "notes": ["No weaknesses: Redistributed 30% to provided topics."]})
+        return counts, policy
+
+    spec = [("imp_provided", 0.40), ("basic_provided", 0.20), ("prob_provided", 0.10), ("imp_weakness", 0.20), ("lessimp_weakness", 0.10)]
+    counts = _percent_allocation(num_q, spec)
+    if len(weaknesses) < 4:
+        policy["difficulty"] = "moderate-to-hard"
+        cap = max(2, len(weaknesses) * 2)
+        wk_total = counts["imp_weakness"] + counts["lessimp_weakness"]
+        if wk_total > cap:
+            overflow = wk_total - cap
+            move_imp = min(overflow, counts["imp_weakness"])
+            counts["imp_weakness"] -= move_imp
+            counts["imp_provided"] += move_imp
+            overflow -= move_imp
+            if overflow > 0:
+                move_less = min(overflow, counts["lessimp_weakness"])
+                counts["lessimp_weakness"] -= move_less
+                counts["prob_provided"] += move_less
+            policy["notes"].append(f"Capped weaknesses at {cap}; overflow redistributed.")
+    return counts, policy
+
+def _sanitize_questions(questions: List[str]) -> List[str]:
+    cleaned, seen = [], set()
+    for q in questions:
+        q = str(q).strip().lstrip(" -0123456789).:").strip()
+        q = q.replace("/", " ").replace("*", " ")
+        if q and q.lower() not in seen:
+            cleaned.append(q)
+            seen.add(q.lower())
+    return cleaned
+
+def _safe_json_loads(text: str) -> Dict[str, Any]:
+    try:
+        data = json.loads(text)
+        return data if isinstance(data, dict) and "questions" in data else {"questions": data if isinstance(data, list) else [text]}
+    except json.JSONDecodeError:
+        start, end = text.find("{"), text.rfind("}")
+        if -1 < start < end:
+            try: return json.loads(text[start:end+1])
+            except: pass
+        return {"questions": [text]}
+
+def _make_prompt(domain, proficiency, username, performance_level, level, num_q, provided_topics, weaknesses, counts, policy):
+    system_instruction = (
+        "You are a strict JSON generator. Return ONLY a JSON object with a key 'questions' mapping to an array of strings. "
+        "No markdown, no comments, no special characters like / or *."
     )
     
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config={"response_mime_type": "application/json"}
+    lines = [f"- {v} {k.replace('_', ' ')} questions." for k, v in counts.items() if v > 0]
+    prompt = (
+        f"Act as a Senior {domain} Interviewer for a {proficiency} candidate ({username}).\n"
+        f"Level: {level}; Performance: {performance_level}. Generate exactly {num_q} questions.\n"
+        f"Topics: {', '.join(provided_topics)}. Weaknesses: {', '.join(weaknesses) if weaknesses else 'None'}.\n"
+        f"Distribution:\n{chr(10).join(lines)}\nDifficulty: {policy['difficulty']}.\n"
+        f"Rule: No '/' or '*'. Concise questions (1-2 mins). Return JSON ONLY: "
+        f'{{"questions": ["Q1", "Q2"]}}'
     )
+    return system_instruction, prompt
+
+def _call_gemini(prompt: str, system_instruction: str, difficulty: str) -> Dict[str, Any]:
+    response = client.models.generate_content(
+        model="gemini-2.0-flash", # Using stable flash model
+        contents=prompt,
+        config={
+            "system_instruction": system_instruction,
+            "response_mime_type": "application/json",
+            "temperature": 0.8 if difficulty == "moderate-to-hard" else 0.7,
+        },
+    )
+    return _safe_json_loads(response.text)
+
+# ---------------- MAIN FUNCTION ----------------
+
+def getDataFromGemini(user: UserInterviewDTO):
     try:
-        json_data = json.loads(response.text)
-        return json_data
-    except json.JSONDecodeError:
-        return {"questions": [response.text]}
+        domain = getattr(user, "domain", "Technology")
+        username = getattr(user, "username", "Candidate")
+        level = int(getattr(user, "level", 2))
+        num_q = _clamp_num_questions(getattr(user, "numQuestions", None))
+        
+        provided_topics = _as_list(getattr(user, "topics", None)) or _as_list(getattr(user, "topic", None)) or ["Core Fundamentals"]
+        weaknesses = _as_list(getattr(user, "weaknesses", None))
+        
+        counts, policy = _build_distribution(level, num_q, weaknesses)
+        system_instruction, prompt = _make_prompt(
+            domain, getattr(user, "proficiency", f"Level {level}"), username, 
+            getattr(user, "performanceLevel", "average"), level, num_q, 
+            provided_topics, weaknesses, counts, policy
+        )
+
+        # Attempt generation
+        result = _call_gemini(prompt, system_instruction, policy["difficulty"])
+        questions = _sanitize_questions(result.get("questions", []))
+
+        # Self-correction if count or format is off
+        if len(questions) != num_q:
+            corrective_prompt = f"{prompt}\n\nERROR: You returned {len(questions)} questions. Return EXACTLY {num_q} now."
+            result = _call_gemini(corrective_prompt, system_instruction, policy["difficulty"])
+            questions = _sanitize_questions(result.get("questions", []))
+
+        return {"questions": questions[:num_q]}
+
+    except Exception as e:
+        return {"error": "Failed to generate questions", "details": str(e)}
+
+
+
+# def getDataFromGemini(user: UserInterviewDTO):
+#     # Use a system-style instruction to enforce JSON formatting
+#     prompt = (f"""Act as a Senior {user.domain} Interviewer for a {user.proficiency} level candidate.
+#         Generate exactly {user.numQuestions} interview questions on the topic: {user.topic}.
+#         Context: The candidate ({user.username}) has a current performance level of {user.performanceLevel}.
+#         Rules:
+#         1. Return the response ONLY as a JSON object with a key 'questions' containing an array of strings.
+#         2. Do not include any introductory or concluding text.
+#         The questions are going to be read by a voice assistant so do not use "/" or "*" or any other special characters which might break the voice assistant.
+#         Return the questions formatted like this:
+#         ["Question 1", "Question 2", "Question 3"]
+#         """
+#     )
+    
+#     response = client.models.generate_content(
+#         model="gemini-2.5-flash",
+#         contents=prompt,
+#         config={"response_mime_type": "application/json"}
+#     )
+#     try:
+#         json_data = json.loads(response.text)
+#         return json_data
+#     except json.JSONDecodeError:
+#         return {"questions": [response.text]}
     
 
 

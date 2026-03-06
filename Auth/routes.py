@@ -3,6 +3,7 @@ from configurations import db
 from Auth.hashing import hash_password, verify_password
 from database.Users.models import Users, LoginUsers
 from Auth.jwt_handler import create_access_token
+from bson import ObjectId
 
 auth_router = APIRouter()
 users_collection = db["users"]

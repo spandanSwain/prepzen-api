@@ -9,6 +9,7 @@ from bson import ObjectId
 response_router = APIRouter()
 interview_collection = db["Interviews"]
 users_collection = db["users"]
+path_collection = db["learning_path"]
 
 @response_router.post("/schedule-interview")
 def start_interview(data: Interviews):
@@ -28,24 +29,8 @@ def start_interview(data: Interviews):
         # FIX THIS ASAP
         ai_response = getDataFromGemini(userObj)
 
-        # DUMMY IF GEMINI IS DOWN
-        # ai_response = {
-        #     "questions": [
-        #         "what is an array?",
-        #         "what is difference between arraylist and hashmap",
-        #         "give a real world use case of hashmap and hashset",
-        #         "tell me about this MVC project of yours"
-        #     ]
-        # }
-
         result = interview_collection.insert_one(interview_doc)
         interview_id = str(result.inserted_id)
-
-        # adding user_id to interview not reverse
-        # users_collection.update_one(
-        #     {"_id": ObjectId(data.user_id)},
-        #     {"$push": {"interviews_attended": ObjectId(interview_id)}}
-        # )
 
         return {
             "interview_id": interview_id,
@@ -62,20 +47,32 @@ def start_interview(data: Interviews):
 
 
 
-def createUserInterviewDTO(data):
-    uidto = UserInterviewDTO()
-    
+def createUserInterviewDTO(data: dict):     
     user_id = ObjectId(data["user_id"])
     user_data = users_collection.find_one({"_id": user_id})
+    if not user_data: return None
 
-    if not user_data:
-        return None
+    user_path = path_collection.find_one({"user_id": user_id})
+    if not user_path: return None
 
-    uidto.username = user_data.get("name", "")
-    uidto.domain = user_data.get("domain", "")
-    uidto.performanceLevel = user_data.get("performanceLevel", "easy")
+    target_assignment_id = str(data["topic"])
+    assignment_details = next(
+        (a for a in user_path.get("assignments_status", []) if str(a["assignment_id"]) == target_assignment_id), 
+        None
+    )
 
-    uidto.numQuestions = data.get("numQuestions")
-    uidto.proficiency = data.get("proficiency")
-    uidto.topic = data.get("topic")
-    return uidto
+    if not assignment_details: return None
+
+    return UserInterviewDTO(
+        username=user_data.get("name") or user_data.get("username", "Candidate"),
+        domain=str(user_data.get("domain", "Technology")),
+        performanceLevel=user_data.get("performanceLevel", "average"),
+        
+        proficiency=data["proficiency"],
+        level=user_path.get("current_level", 1),
+        
+        topic=str(assignment_details.get("title")),
+        numQuestions=int(data["numQuestions"]),
+        
+        weaknesses=assignment_details.get("weakness", [])
+    )
