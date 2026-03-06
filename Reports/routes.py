@@ -19,10 +19,10 @@ def get_report(user: UserReport):
 
         completed_assignments = []
         for assignment in path_doc.get("assignments_status", []):
-            if assignment.get("status") == "completed":
+            if assignment.get("status") != "pending":
                 raw_date = assignment.get("completed_at")
                 
-                formatted_date = "N/A" 
+                formatted_date = "N/A"
                 if raw_date:
                     if isinstance(raw_date, datetime):
                         formatted_date = raw_date.strftime("%Y-%m-%d")
