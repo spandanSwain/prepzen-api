@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from Auth.routes import auth_router
 from Quiz.routes import quiz_router
+from Admin.routes import admin_router
 from Domain.routes import domain_router
 from Reports.routes import report_router
 from Learning.routes import learning_router
@@ -23,6 +24,7 @@ app.add_middleware(
 # INCLUDE ALL ROUTERS HERE
 app.include_router(auth_router, prefix="/auth", tags=["Auth"])
 app.include_router(quiz_router, prefix="/quiz", tags=["Quiz"])
+app.include_router(admin_router, prefix="/admin", tags=["Admin"])
 app.include_router(domain_router, prefix="/domain", tags=["Domain"])
 app.include_router(report_router, prefix="/report", tags=["Report"])
 app.include_router(learning_router, prefix="/learning", tags=["Learning"])
