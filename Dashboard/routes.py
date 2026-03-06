@@ -8,6 +8,7 @@ users_collection = db["users"]
 domain_collection = db["domain"]
 interview_collection = db["Interviews"]
 quiz_collection = db["quiz"]
+path_collection = db["learning_path"]
 
 @dashboard_router.post("/get-content")
 def get_dashboard_content(user: UserDashboard):
@@ -17,12 +18,23 @@ def get_dashboard_content(user: UserDashboard):
             raise HTTPException(status_code=404, detail="User not found")
         
         user_id = existing_user["_id"]
+
+        user_path = path_collection.find_one({"user_id": user_id})
+        path_ratio = "0/0"
+        path_percentage = 0
+        
+        if user_path:
+            assignments = user_path.get("assignments_status", [])
+            total_assignments = len(assignments)
+            completed_assignments = len([a for a in assignments if a.get("status") == "completed"])
+            
+            path_ratio = f"{completed_assignments}/{total_assignments}"
+            if total_assignments > 0:
+                path_percentage = round((completed_assignments / total_assignments) * 100, 2)
         
         interviews = list(interview_collection.find({"user_id": user_id}))
         total_interviews = len(interviews)
-
-        cumulative_score = 0
-        topic_performance = {}
+        cummulative_score = 0
 
         for i in interviews:
             m = i.get("metrics", {})
@@ -35,9 +47,9 @@ def get_dashboard_content(user: UserDashboard):
             )
             
             interview_pct = (interview_total / 500) * 100
-            cumulative_score += interview_pct
+            cummulative_score += interview_pct
 
-        avg_interview_score = (cumulative_score / total_interviews) if total_interviews > 0 else 0
+        avg_interview_score = (cummulative_score / total_interviews) if total_interviews > 0 else 0
 
         quizzes = list(quiz_collection.find({"user_id": user_id}))
         total_quizzes = len(quizzes)
@@ -48,6 +60,8 @@ def get_dashboard_content(user: UserDashboard):
                 "total_interviews": total_interviews,
                 "quiz_ratio": f"{len(passed_quizzes)}/{total_quizzes}",
                 "avg_interview_score": f"{avg_interview_score}%",
+                "path_ratio": path_ratio,
+                "path_percentage": f"{path_percentage}%"
             },
             "quiz_overview": serialize_list(quizzes),
         }

@@ -164,34 +164,6 @@ def getDataFromGemini(user: UserInterviewDTO):
         return {"error": "Failed to generate questions", "details": str(e)}
 
 
-
-# def getDataFromGemini(user: UserInterviewDTO):
-#     # Use a system-style instruction to enforce JSON formatting
-#     prompt = (f"""Act as a Senior {user.domain} Interviewer for a {user.proficiency} level candidate.
-#         Generate exactly {user.numQuestions} interview questions on the topic: {user.topic}.
-#         Context: The candidate ({user.username}) has a current performance level of {user.performanceLevel}.
-#         Rules:
-#         1. Return the response ONLY as a JSON object with a key 'questions' containing an array of strings.
-#         2. Do not include any introductory or concluding text.
-#         The questions are going to be read by a voice assistant so do not use "/" or "*" or any other special characters which might break the voice assistant.
-#         Return the questions formatted like this:
-#         ["Question 1", "Question 2", "Question 3"]
-#         """
-#     )
-    
-#     response = client.models.generate_content(
-#         model="gemini-2.5-flash",
-#         contents=prompt,
-#         config={"response_mime_type": "application/json"}
-#     )
-#     try:
-#         json_data = json.loads(response.text)
-#         return json_data
-#     except json.JSONDecodeError:
-#         return {"questions": [response.text]}
-    
-
-
 def evaluateUserBasedOnTranscribe(data: InterviewComplete):
     system_instruction = "You are a professional interviewer analyzing a mock interview. Evaluate the candidate strictly based on the provided transcript."
     

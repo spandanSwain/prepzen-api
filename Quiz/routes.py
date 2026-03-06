@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from configurations import db
 from database.Quiz.models import UserQuiz, QuizScore
 from AI_Utility.quiz import generateQuizFromGemini
-from datetime import datetime
+from datetime import datetime, timezone
 
 quiz_router = APIRouter()
 users_collection = db["users"]
@@ -63,7 +63,7 @@ def calculate_quiz_score(data: QuizScore):
             "employee_id": str(data.employee_id),
             "score": data.score,
             "status": "pass" if numeric_score >= 75 else "fail",
-            "updatedAt": datetime.utcnow()
+            "updatedAt": datetime.now(timezone.utc)
         }
         quiz_collection.insert_one(quiz_record)
 
