@@ -119,7 +119,7 @@ def _make_prompt(domain, proficiency, username, performance_level, level, num_q,
 
 def _call_gemini(prompt: str, system_instruction: str, difficulty: str) -> Dict[str, Any]:
     response = client.models.generate_content(
-        model="gemini-2.0-flash", # Using stable flash model
+        model="gemini-2.5-flash", # Using stable flash model
         contents=prompt,
         config={
             "system_instruction": system_instruction,
