@@ -14,3 +14,4 @@ class EvaluationMetrics(BaseModel):
     confidence_clarity: int
     detailed_feedback: PerformanceRating
     areas_for_improvement: list[str]
+    weaknesses: list[str]

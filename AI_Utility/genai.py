@@ -159,13 +159,16 @@ def getDataFromGemini(user: UserInterviewDTO):
             questions = _sanitize_questions(result.get("questions", []))
 
         return {"questions": questions[:num_q]}
-
     except Exception as e:
         return {"error": "Failed to generate questions", "details": str(e)}
 
 
 def evaluateUserBasedOnTranscribe(data: InterviewComplete):
-    system_instruction = "You are a professional interviewer analyzing a mock interview. Evaluate the candidate strictly based on the provided transcript."
+    system_instruction = """
+        You are a professional interviewer analyzing a mock interview. Evaluate the candidate strictly based on the provided transcript.
+        When identifying weaknesses, use standard industry terminology (e.g., 'REST API Fundamentals' instead of 'He doesn't know APIs')
+        to ensure consistency across multiple interview sessions.
+    """
     
     prompt = f"""
     Analyze the following interview transcript:
@@ -185,7 +188,10 @@ def evaluateUserBasedOnTranscribe(data: InterviewComplete):
     New Required Formatting:
     1. detailed_feedback: This must be exactly ONE of these three strings: "Good", "Average", or "Bad" based on the overall performance.
     2. areas_for_improvement: This must be a JSON array (list) of strings containing specific, actionable critiques.
-
+    3. weaknesses: Identify specific technical or soft skill gaps. 
+       - Return as a JSON array of strings: ["Topic A", "Topic B"].
+       - Use concise, standard titles for topics (e.g., 'Asynchronous Programming', 'SQL Indexing').
+       - These will be used to generate future questions, so be precise.
     Return the response ONLY as a JSON object.
     """
 
@@ -196,7 +202,7 @@ def evaluateUserBasedOnTranscribe(data: InterviewComplete):
             config={
                 "system_instruction": system_instruction,
                 "response_mime_type": "application/json",
-                "response_schema": EvaluationMetrics 
+                "response_schema": EvaluationMetrics
             }
         )
         

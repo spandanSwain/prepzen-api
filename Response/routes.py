@@ -23,7 +23,6 @@ def start_interview(data: Interviews):
         }
 
         userObj: UserInterviewDTO = createUserInterviewDTO(interview_doc)
-
         if not userObj: raise HTTPException(status_code=404, detail="User not found")
         
         # FIX THIS ASAP
@@ -36,7 +35,6 @@ def start_interview(data: Interviews):
             "interview_id": interview_id,
             "response": ai_response
         }
-
     except HTTPException as hex:
         raise hex
     except Exception as ex:
@@ -44,8 +42,7 @@ def start_interview(data: Interviews):
             status_code=500,
             detail=f"Some exception occured in Response/routes.py/schedule_interview() /response/start-interview :: {ex}"
         )
-
-
+    
 
 def createUserInterviewDTO(data: dict):     
     user_id = ObjectId(data["user_id"])
@@ -56,23 +53,26 @@ def createUserInterviewDTO(data: dict):
     if not user_path: return None
 
     target_assignment_id = str(data["topic"])
-    assignment_details = next(
-        (a for a in user_path.get("assignments_status", []) if str(a["assignment_id"]) == target_assignment_id), 
-        None
-    )
+    assignments = user_path.get("assignments_status", [])
+    current_assignment = next((a for a in assignments if str(a["assignment_id"]) == target_assignment_id), None)
+    if not current_assignment: return None
 
-    if not assignment_details: return None
+    # 2. COLLECT ALL HISTORICAL WEAKNESSES
+    all_past_weaknesses = []
+    for a in assignments:
+        ws = a.get("weakness", [])
+        if isinstance(ws, list):
+            all_past_weaknesses.extend(ws)
+    
+    unique_weaknesses = list(set([w.strip().title() for w in all_past_weaknesses if w]))
 
     return UserInterviewDTO(
-        username=user_data.get("name") or user_data.get("username", "Candidate"),
-        domain=str(user_data.get("domain", "Technology")),
-        performanceLevel=user_data.get("performanceLevel", "average"),
-        
-        proficiency=data["proficiency"],
-        level=user_path.get("current_level", 1),
-        
-        topic=str(assignment_details.get("title")),
-        numQuestions=int(data["numQuestions"]),
-        
-        weaknesses=assignment_details.get("weakness", [])
+        username = user_data.get("name") or user_data.get("username", "Candidate"),
+        domain = str(user_data.get("domain", "Technology")),
+        performanceLevel = user_data.get("performanceLevel", "average"),
+        proficiency = data["proficiency"],
+        level = int(user_path.get("current_level", 1)),
+        topic = str(current_assignment.get("title")),
+        numQuestions = int(data["numQuestions"]),
+        weaknesses = unique_weaknesses
     )
