@@ -124,20 +124,30 @@ def get_admin_dashboard():
 
 @admin_router.get("/domain-users/{domain_id}")
 def get_users_by_domain(domain_id: str):
-    """Requirement 7: All students in a specific domain"""
     try:
         users = users_collection.find({"domain": ObjectId(domain_id)}).to_list(None)
         for user in users:
             user["_id"] = str(user["_id"])
             user["domain"] = str(user["domain"])
+
+            path = path_collection.find_one({"user_id": ObjectId(user["_id"])})
+            if path and "assignments_status" in path:
+                assignments = path["assignments_status"]
+                total_assignments = len(assignments)
+                
+                completed_count = sum(1 for a in assignments if a.get("status") == "completed")
+                
+                if total_assignments > 0:
+                    user["path_progress"] = int((completed_count / total_assignments) * 100)
+                else: user["path_progress"] = 0
+            else:
+                user["path_progress"] = 0
         return users
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex))
     
 def serialize_mongo(data):
-    """Helper to convert MongoDB ObjectId to string recursively."""
-    if isinstance(data, list):
-        return [serialize_mongo(item) for item in data]
+    if isinstance(data, list): return [serialize_mongo(item) for item in data]
     if isinstance(data, dict):
         return {k: (str(v) if isinstance(v, ObjectId) else serialize_mongo(v)) for k, v in data.items()}
     return data
