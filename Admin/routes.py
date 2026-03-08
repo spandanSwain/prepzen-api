@@ -170,7 +170,7 @@ def get_all_students():
             student_id = student["_id"]
             
             path = path_collection.find_one({"user_id": student_id})
-            domain = domain_collection.find_one({"_id": student["domain"]})
+            domain = domain_collection.find_one({"_id": student.get("domain", "")})
             
             progress = 0
             if path and "assignments_status" in path:
