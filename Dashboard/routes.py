@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from configurations import db
 from bson import ObjectId
 from database.Dashboards.models import UserDashboard
+from datetime import datetime
 
 dashboard_router = APIRouter()
 users_collection = db["users"]
@@ -9,6 +10,7 @@ domain_collection = db["domain"]
 interview_collection = db["Interviews"]
 quiz_collection = db["quiz"]
 path_collection = db["learning_path"]
+notification_collection = db["notification"]
 
 @dashboard_router.post("/get-content")
 def get_dashboard_content(user: UserDashboard):
@@ -81,6 +83,22 @@ def get_dashboard_content(user: UserDashboard):
                 if path["user_id"] == user_id:
                     user_rank = index + 1
 
+        query = {
+            "employee_id": user.employee_id,
+            "is_read": False
+        }
+
+        notifications = list(notification_collection.find(query).sort("created_at", -1))
+
+        for n in notifications:
+            n["_id"] = str(n["_id"])
+
+            if "student" in n: n["student"] = str(n["student"])
+            if "admin" in n: n["admin"] = str(n["admin"])
+
+            if isinstance(n.get("created_at"), datetime):
+                n["created_at"] = n["created_at"].isoformat()
+
         return {
             "metrics": {
                 "total_interviews": total_interviews,
@@ -88,7 +106,8 @@ def get_dashboard_content(user: UserDashboard):
                 "avg_interview_score": f"{avg_interview_score}%",
                 "path_ratio": path_ratio,
                 "path_percentage": f"{path_percentage}%",
-                "user_rank": user_rank
+                "user_rank": user_rank,
+                "notifications": notifications
             },
             "leaderboard": leaderboard,
             "quiz_overview": serialize_list(quizzes),
