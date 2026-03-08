@@ -6,9 +6,10 @@ from Domain.routes import domain_router
 from Reports.routes import report_router
 from Learning.routes import learning_router
 from Response.routes import response_router
-from Feedback.routes import conclusion_router
 from Dashboard.routes import dashboard_router
+from Feedback.routes import conclusion_router
 from fastapi.middleware.cors import CORSMiddleware
+from Notification.routes import notification_router
 
 # INIT FASTAPI
 app = FastAPI()
@@ -31,3 +32,4 @@ app.include_router(learning_router, prefix="/learning", tags=["Learning"])
 app.include_router(response_router, prefix="/response", tags=["Response"])
 app.include_router(conclusion_router, prefix="/feedback", tags=["Feedback"])
 app.include_router(dashboard_router, prefix="/dashboard", tags=["Dashboard"])
+app.include_router(notification_router, prefix="/notification", tags=["Notification"])
