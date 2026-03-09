@@ -183,7 +183,7 @@ def get_all_students():
 
             student_registry.append({
                 "_id": str(student_id),
-                "domain": domain["domain_name"],
+                "domain": domain["domain_name"] if domain else "Unknown",
                 "username": student.get("username", "Unknown"),
                 "employee_id": student.get("employee_id", "N/A"),
                 "role": student.get("role"),
