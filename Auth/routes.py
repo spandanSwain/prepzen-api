@@ -31,8 +31,7 @@ def register_user(user: Users):
             "username": user.username,
             "employee_id": user.employee_id,
             "email": user.email,
-            "role": user.role,
-            "user_id": str(user["_id"])
+            "role": user.role
         }
 
         return {
