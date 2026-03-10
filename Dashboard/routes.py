@@ -53,7 +53,8 @@ def get_dashboard_content(user: UserDashboard):
             interview_pct = (interview_total / 500) * 100
             cummulative_score += interview_pct
         avg_interview_score = (cummulative_score / total_interviews) if total_interviews > 0 else 0
-
+        avg_interview_score = round(avg_interview_score, 2)
+        
         # QUIZ SCORES
         quizzes = list(quiz_collection.find({"user_id": user_id}))
         total_quizzes = len(quizzes)

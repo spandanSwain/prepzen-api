@@ -291,7 +291,7 @@ def get_student_detailed_report(employee_id: str):
             "curriculum": {
                 "total_completion": completion_pct,
                 "topics_mastered": f"{mastered_topics} / {total_topics}",
-                "avg_interview_score": f"{int(sum(float(x['score'].strip('%')) for x in performance_log)/len(performance_log)) if performance_log else 0}%"
+                "avg_interview_score": f"{round(sum(float(x['score'].strip('%')) for x in performance_log) / len(performance_log), 2) if performance_log else 0}%"
             },
             "ai_evaluation": {
                 "weaknesses": top_weaknesses_list,
