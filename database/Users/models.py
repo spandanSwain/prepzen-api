@@ -16,3 +16,6 @@ class LoginUsers(BaseModel):
     employee_id: str
     password: str
     role: str
+
+class DeleteUsers(BaseModel):
+    employee_id: str

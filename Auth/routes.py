@@ -1,13 +1,18 @@
 from fastapi import APIRouter, HTTPException, status
 from configurations import db
 from Auth.hashing import hash_password, verify_password
-from database.Users.models import Users, LoginUsers
+from database.Users.models import Users, LoginUsers, DeleteUsers
 from Auth.jwt_handler import create_access_token
 from bson import ObjectId
 
 auth_router = APIRouter()
 users_collection = db["users"]
 domain_collection = db["domain"]
+interview_collection = db["Interviews"]
+quiz_collection = db["quiz"]
+path_collection = db["learning_path"]
+notification_collection = db["notification"]
+
 
 @auth_router.post("/signup")
 def register_user(user: Users):
@@ -98,3 +103,44 @@ def login_user(user: LoginUsers):
             status_code=500,
             detail=f"Some exception occured in Auth/routes.py/login_user() /auth/login :: {ex}"
         )
+
+@auth_router.delete("/delete-user")
+def delete_users(user: DeleteUsers):
+    try:
+        employee_id = int(user.employee_id)
+        user = users_collection.find_one({"employee_id": str(user.employee_id)})
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail=f"User not found"
+            )
+        
+        user_id = user["_id"]
+        # interview
+        interview_collection.delete_many({"user_id": user_id})
+
+        # learning path
+        path_collection.delete_many({"user_id": user_id})
+
+        # quiz
+        quiz_collection.delete_many({"user_id": user_id})
+
+        # notification
+        notification_collection.delete_many({"student": user_id})
+
+        # users
+        users_collection.delete_one({"_id": user_id})
+
+        return {
+            "status_code": 200,
+            "message": "user deleted"
+        }
+
+    except HTTPException as hex:
+        raise hex
+    except Exception as ex:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Some exception occured in Auth/routes.py/delete_users() /auth/delete-user :: {ex}"
+        )
+    
