@@ -1,22 +1,33 @@
 import os
 import json
+import re
 from google import genai
 from dotenv import load_dotenv
 from database.Interviews.models import InterviewComplete
 from database.DTOs.user_interview_question import UserInterviewDTO
+from database.Interviews.models import InterviewFinalComplete
 from database.DTOs.evaluation_metrics import EvaluationMetrics
 from typing import List, Dict, Any, Tuple
 
-# Load the variables from .env into the system environment
 load_dotenv()
- 
-# Fetch the key using os.getenv
 api_key = os.getenv("GEMINI_API_KEY")
- 
-# Initialize the client
 client = genai.Client(api_key=api_key)
 
 # HELPERS
+def _voice_safe_sanitize(questions: List[str]) -> List[str]:
+    """
+    Removes characters that confuse Voice Agents/TTS engines.
+    """
+    cleaned = []
+    for q in questions:
+        q = q.replace("*", "").replace("/", " or ").replace("\\", " ")
+        q = re.sub(r'#{1,6}\s?', '', q) 
+        q = " ".join(q.split())
+        if q:
+            cleaned.append(q)
+    return cleaned
+
+
 def _clamp_num_questions(n: int | None) -> int:
     try:
         if n is None: return 15
@@ -119,7 +130,7 @@ def _make_prompt(domain, proficiency, username, performance_level, level, num_q,
 
 def _call_gemini(prompt: str, system_instruction: str, difficulty: str) -> Dict[str, Any]:
     response = client.models.generate_content(
-        model="gemini-2.5-flash", # Using stable flash model
+        model="gemini-2.5-flash",
         contents=prompt,
         config={
             "system_instruction": system_instruction,
@@ -148,11 +159,9 @@ def getDataFromGemini(user: UserInterviewDTO):
             provided_topics, weaknesses, counts, policy
         )
 
-        # Attempt generation
         result = _call_gemini(prompt, system_instruction, policy["difficulty"])
         questions = _sanitize_questions(result.get("questions", []))
 
-        # Self-correction if count or format is off
         if len(questions) != num_q:
             corrective_prompt = f"{prompt}\n\nERROR: You returned {len(questions)} questions. Return EXACTLY {num_q} now."
             result = _call_gemini(corrective_prompt, system_instruction, policy["difficulty"])
@@ -206,7 +215,6 @@ def evaluateUserBasedOnTranscribe(data: InterviewComplete):
             }
         )
         
-        # Parse the string response into a Python dictionary
         evaluation_json = json.loads(response.text)
         return evaluation_json
 
@@ -215,3 +223,97 @@ def evaluateUserBasedOnTranscribe(data: InterviewComplete):
             "error": "Failed to generate evaluation",
             "details": str(e)
         }
+    
+def getFinalInterviewQuestions(user_data: Dict, user_path: Dict, num_q: int):
+    assignments = user_path.get("assignments_status", [])
+    all_topics = [a.get("title") for a in assignments if a.get("title")]
+    
+    raw_weaknesses = []
+    for a in assignments:
+        ws = a.get("weakness", [])
+        if isinstance(ws, list):
+            raw_weaknesses.extend(ws)
+    
+    unique_weaknesses = list(set([w.strip().title() for w in raw_weaknesses if w]))
+
+    system_instruction = (
+        "You are a Senior Technical Examiner. Return ONLY a JSON object with a key 'questions' "
+        "mapping to an array of strings. No markdown, no comments."
+    )
+    
+    prompt = (
+        f"Conduct a FINAL Intermediate Level assessment for {user_data.get('username', 'Candidate')}.\n"
+        f"The candidate has completed a learning path in {user_data.get('domain', 'Technology')}.\n"
+        f"Total Questions required: {num_q}.\n\n"
+        f"Syllabus (Topics Covered): {', '.join(all_topics)}.\n"
+        f"Historical Weaknesses to focus on: {', '.join(unique_weaknesses) if unique_weaknesses else 'None'}.\n\n"
+        f"Instructions:\n"
+        f"- Ensure questions are at an INTERMEDIATE level.\n"
+        f"- Cover the broad syllabus but weight 40% of questions towards the weaknesses.\n"
+        f"- Return JSON: {{\"questions\": [\"Q1\", \"Q2\"]}}"
+    )
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config={
+                "system_instruction": system_instruction,
+                "response_mime_type": "application/json",
+                "temperature": 0.75,
+            },
+        )
+        data = _safe_json_loads(response.text)
+        data["questions"] = _voice_safe_sanitize(data.get("questions", []))
+        return data
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def evaluateFinalInterview(data: InterviewFinalComplete):
+    system_instruction = """
+        You are a professional interviewer analyzing a final interview. Evaluate the candidate strictly based on the provided transcript.
+        When identifying weaknesses, use standard industry terminology (e.g., 'REST API Fundamentals' instead of 'He doesn't know APIs')
+        to ensure consistency across multiple interview sessions.
+    """
+    
+    prompt = f"""
+    Analyze the following interview transcript:
+    {data.transcribe}
+
+    Task:
+    Provide a score (0-100) for each category and a critical evaluation. 
+    Do not be lenient; point out mistakes or gaps in knowledge clearly.
+
+    Evaluation Criteria:
+    - communication_skills: (0-100)
+    - technical_knowledge: (0-100)
+    - problem_solving: (0-100)
+    - cultural_role_fit: (0-100)
+    - confidence_clarity: (0-100)
+    
+    New Required Formatting:
+    1. detailed_feedback: This must be exactly ONE of these three strings: "Good", "Average", or "Bad" based on the overall performance.
+    2. areas_for_improvement: This must be a JSON array (list) of strings containing specific, actionable critiques.
+    3. weaknesses: Identify specific technical or soft skill gaps. 
+       - Return as a JSON array of strings: ["Topic A", "Topic B"].
+       - Use concise, standard titles for topics (e.g., 'Asynchronous Programming', 'SQL Indexing').
+       - These will be used to generate future questions, so be precise.
+    Return the response ONLY as a JSON object.
+    """
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config={
+                "system_instruction": system_instruction,
+                "response_mime_type": "application/json",
+                "response_schema": EvaluationMetrics
+            }
+        )
+        
+        evaluation_json = json.loads(response.text)
+        return evaluation_json
+    except Exception as e:
+        return {"error": "Evaluation failed", "details": str(e)}

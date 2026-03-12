@@ -10,3 +10,6 @@ class Interviews(BaseModel):
 class InterviewComplete(BaseModel):
     interview_id: str
     transcribe: Dict[str, Any]
+
+class InterviewFinalComplete(BaseModel):
+    transcribe: Dict[str, Any]

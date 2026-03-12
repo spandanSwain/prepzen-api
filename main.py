@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from Auth.routes import auth_router
 from Quiz.routes import quiz_router
+from Final.routes import final_router
 from Admin.routes import admin_router
 from Domain.routes import domain_router
 from Reports.routes import report_router
@@ -8,8 +9,8 @@ from Learning.routes import learning_router
 from Response.routes import response_router
 from Dashboard.routes import dashboard_router
 from Feedback.routes import conclusion_router
-from fastapi.middleware.cors import CORSMiddleware
 from Notification.routes import notification_router
+from fastapi.middleware.cors import CORSMiddleware
 
 # INIT FASTAPI
 app = FastAPI()
@@ -25,6 +26,7 @@ app.add_middleware(
 # INCLUDE ALL ROUTERS HERE
 app.include_router(auth_router, prefix="/auth", tags=["Auth"])
 app.include_router(quiz_router, prefix="/quiz", tags=["Quiz"])
+app.include_router(final_router, prefix="/final", tags=["Final"])
 app.include_router(admin_router, prefix="/admin", tags=["Admin"])
 app.include_router(domain_router, prefix="/domain", tags=["Domain"])
 app.include_router(report_router, prefix="/report", tags=["Report"])

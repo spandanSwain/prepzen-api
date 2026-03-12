@@ -19,3 +19,7 @@ class LoginUsers(BaseModel):
 
 class DeleteUsers(BaseModel):
     employee_id: str
+
+class FinalUsers(BaseModel):
+    employee_id: str
+    numQuestions: str
