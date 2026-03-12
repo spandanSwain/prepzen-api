@@ -26,20 +26,16 @@ def complete_interview(data: InterviewComplete):
         total_score = sum(rubrics.values())
         percentage = (total_score / 500) * 100
 
-        if percentage < 50:
-            overall_status = "Bad"
-        elif 50 <= percentage < 75:
-            overall_status = "Average"
-        elif 75 <= percentage < 90:
-            overall_status = "Good"
-        else: # >= 90
-            overall_status = "Outstanding"
+        if percentage < 50: overall_status = "Bad"
+        elif 50 <= percentage < 75: overall_status = "Average"
+        elif 75 <= percentage < 90: overall_status = "Good"
+        else: overall_status = "Outstanding"
 
         detailed_feedback = evaluation.get("detailed_feedback")
         areas_for_improvement = evaluation.get("areas_for_improvement")
         weaknesses = evaluation.get("weaknesses", [])
 
-        # THIS PART UPDATES THE INTERVIEW SECTION WITH METRICS AND CHAT BETWEEN USER AND AI
+
         interview_id = ObjectId(data.interview_id)
         db["Interviews"].update_one(
             {"_id": interview_id},
@@ -63,15 +59,29 @@ def complete_interview(data: InterviewComplete):
         
         if learning_path:
             current_lv = learning_path.get("current_level", 1)
-            update_query = {
-                f"assignments_status.{current_lv - 1}.score": percentage,
-                f"assignments_status.{current_lv - 1}.completed_at": datetime.utcnow(),
-                f"assignments_status.{current_lv - 1}.weakness": weaknesses
-            }
+            assignment_index = current_lv - 1
+
+            existing_assignments = learning_path.get("assignments_status", [])
+            previous_score = 0
+            if 0 <= assignment_index < len(existing_assignments):
+                previous_score = existing_assignments[assignment_index].get("score", 0)
+
+            # update_query = {
+            #     f"assignments_status.{assignment_index}.score": percentage,
+            #     f"assignments_status.{assignment_index}.completed_at": datetime.utcnow(),
+            #     f"assignments_status.{assignment_index}.weakness": weaknesses
+            # }
+
+            update_query = {}
+
+            if percentage > previous_score:
+                update_query[f"assignments_status.{assignment_index}.score"] = percentage
+                update_query[f"assignments_status.{assignment_index}.weakness"] = weaknesses
+                update_query[f"assignments_status.{assignment_index}.completed_at"] = datetime.utcnow()
 
             if percentage >= 75:
                 update_query.update({
-                    f"assignments_status.{current_lv - 1}.status": "completed",
+                    f"assignments_status.{assignment_index}.status": "completed",
                     "current_level": current_lv + 1,
                     "overall_progress": min(learning_path.get("overall_progress", 0) + 10, 100)
                 })
@@ -84,11 +94,16 @@ def complete_interview(data: InterviewComplete):
                     }
                 )
             else:
-                update_query.update({f"assignments_status.{current_lv - 1}.status": "failed"})
-                db["learning_path"].update_one(
-                    {"user_id": user_id},
-                    {"$set": update_query}
-                )
+                # update_query.update({f"assignments_status.{current_lv - 1}.status": "failed"})
+                current_status = existing_assignments[assignment_index].get("status") if assignment_index < len(existing_assignments) else None
+                if current_status != "completed":
+                    update_query[f"assignments_status.{assignment_index}.status"] = "failed"
+                
+                if update_query:
+                    db["learning_path"].update_one(
+                        {"user_id": user_id},
+                        {"$set": update_query}
+                    )
 
         return_response = {
             "metrics": rubrics,
